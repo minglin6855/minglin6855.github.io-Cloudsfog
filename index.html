@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>雲海 & 平流霧 雙源物理級預報分析儀 (行動優化版)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            background-color: #060913;
+            color: #f8fafc;
+            /* 針對手機瀏覽器優化彈性滾動 */
+            -webkit-overflow-scrolling: touch;
+        }
+        .glass-card {
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.7);
+        }
+        .glow-active {
+            box-shadow: 0 0 20px rgba(34, 211, 238, 0.15);
+            border-color: rgba(34, 211, 238, 0.3);
+        }
+        input:disabled, select:disabled {
+            background-color: #0f172a !important;
+            color: #475569 !important;
+            cursor: not-allowed;
+            border-color: #1e293b !important;
+        }
+        /* 隱藏行動裝置自帶的輸入框內陰影與美化 select */
+        select {
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+            background-image: url("data:image/svg+xml;utf8,<svg fill='white' height='24' viewBox='0 0 24 24' width='24' xmlns='http://www.w3.org/2000/svg'><path d='M7 10l5 5 5-5z'/></svg>");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+            background-size: 16px;
+        }
+    </style>
+</head>
+<body class="min-h-screen py-4 px-3 sm:py-8 sm:px-6 md:px-8 font-sans antialiased">
+
+    <div class="max-w-2xl mx-auto">
+        <header class="text-center mb-6 mt-2">
+            <h1 class="text-2xl md:text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-teal-400 via-cyan-400 to-sky-400 tracking-tight">
+                🌫️ 雲海與平流霧物理分析儀
+            </h1>
+            <p class="text-slate-400 text-[11px] tracking-widest mt-1 uppercase font-semibold">
+                CWA (60%) & Open-Meteo (40%) 雙源物理引擎
+            </p>
+        </header>
+
+        <div class="glass-card rounded-2xl p-4 sm:p-6 mb-5">
+            <h2 class="text-xs font-bold text-cyan-400 mb-5 flex items-center gap-2 border-b border-slate-800 pb-3 tracking-widest uppercase">
+                <span class="inline-block w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
+                <span>核心觀測物理參數</span>
+            </h2>
+
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">1. 預報目標</label>
+                    <select id="predictType" class="w-full bg-slate-900/90 border border-slate-700/80 rounded-xl px-4 py-3.5 text-white text-sm font-medium focus:outline-none focus:ring-2 focus:ring-cyan-500/50 transition-all" onchange="toggleLocationOptions()">
+                        <option value="cloud">☁️ 雲海預測 (需高空逆溫、乾層蓋頂)</option>
+                        <option value="fog">🌫️ 平流霧預測 (需近地飽和、微風平流)</option>
+                    </select>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">2. 預報日期</label>
+                        <input type="date" id="predictDate" class="w-full bg-slate-900/90 border border-slate-700/80 rounded-xl px-3 py-3 text-white text-sm font-medium focus:outline-none focus:ring-2 focus:ring-cyan-500/50 transition-all">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">3. 觀測時段</label>
+                        <select id="timePeriod" class="w-full bg-slate-900/90 border border-slate-700/80 rounded-xl px-3 py-3 text-white text-sm font-medium focus:outline-none focus:ring-2 focus:ring-cyan-500/50 transition-all">
+                            <option value="sunrise">🌅 日出 (04-08)</option>
+                            <option value="sunset">🌇 日落 (16-20)</option>
+                            <option value="all" selected>🕒 全天 24H 趨勢</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">4. 觀測點海拔</label>
+                        <select id="locAltitude" class="w-full bg-slate-900/90 border border-slate-700/80 rounded-xl px-4 py-3.5 text-white text-sm font-medium focus:outline-none focus:ring-2 focus:ring-cyan-500/50 transition-all">
+                            <option value="150">低海拔 (50-300m) 如淡水、關渡</option>
+                            <option value="800" selected>中海拔 (500-1000m) 如九份、五分山</option>
+                            <option value="2200">高海拔 (1500-2500m) 如阿里山</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">5. 選擇預設觀測點</label>
+                        <select id="cloudLoc" class="w-full bg-slate-900/90 border border-slate-700/80 rounded-xl px-4 py-3.5 text-white text-sm font-medium focus:outline-none focus:ring-2 focus:ring-cyan-500/50 transition-all" onchange="checkCustomLoc()">
+                            <option value="25.1111,121.8461">九份/不厭亭</option>
+                            <option value="25.1950,121.5600">大屯山頂</option>
+                            <option value="25.1764,121.5694">中湖戰備道路</option>
+                            <option value="24.9547,121.6425">石碇二格山</option>
+                            <option value="25.0200,121.8400">五分山雷達站</option>
+                            <option value="24.9352,121.7061">坪林南山寺</option>
+                            <option value="25.0341,121.7377">平溪谷地</option>
+                            <option value="22.9913,120.4036">左鎮二寮</option>
+                            <option value="23.5111,120.8011">阿里山區</option>
+                            <option value="24.7088,121.1558">大山背樂善堂</option>
+                            <option value="23.9011,120.9011">五城金龍山</option>
+                            <option value="custom">📍 [自訂位置/輸入經緯度]</option>
+                        </select>
+
+                        <select id="fogLoc" class="w-full bg-slate-900/90 border border-slate-700/80 rounded-xl px-4 py-3.5 text-white text-sm font-medium focus:outline-none focus:ring-2 focus:ring-cyan-500/50 transition-all hidden" onchange="checkCustomLoc()">
+                            <option value="25.1583,121.4116">八里左岸</option>
+                            <option value="25.1694,121.4428">淡水河口</option>
+                            <option value="25.1166,121.4936">關渡平原</option>
+                            <option value="24.3061,120.7188">后里台地</option>
+                            <option value="25.1111,121.8461">九份山區</option>
+                            <option value="custom">📍 [自訂位置/輸入經緯度]</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div id="customLatLngSection" class="p-3 bg-slate-950/80 rounded-xl border border-slate-800/80 space-y-2">
+                    <p class="text-[10px] text-amber-400 font-semibold" id="coordsHint">🔒 帶入預設經緯度座標：</p>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <input type="number" id="customLat" placeholder="緯度 Lat" step="0.0001" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2.5 text-white text-xs" disabled>
+                        </div>
+                        <div>
+                            <input type="number" id="customLng" placeholder="經度 Lng" step="0.0001" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2.5 text-white text-xs" disabled>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <button id="btnAnalyze" onclick="startAnalysis()" class="w-full mt-6 bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400 text-white font-extrabold py-4 px-6 rounded-xl transition duration-200 shadow-lg shadow-teal-950/40 text-center tracking-widest text-sm uppercase active:scale-[0.98]">
+                🚀 開始雙源物理級分析
+            </button>
+        </div>
+
+        <div id="resultCard" class="glass-card rounded-2xl p-4 sm:p-6 shadow-2xl hidden transition-all duration-500 glow-active">
+            <div class="flex justify-between items-center border-b border-slate-800/80 pb-3.5 mb-5">
+                <h3 class="text-xs font-black text-cyan-400 tracking-wider uppercase" id="resultTitle">📊 物理診斷報告</h3>
+                <span class="px-2.5 py-1 bg-slate-950/80 text-[10px] text-slate-400 rounded-full font-mono" id="reportTime"></span>
+            </div>
+
+            <div class="flex flex-col items-center justify-center py-4 border-b border-slate-800/50 mb-5">
+                <div class="text-[10px] text-slate-400 tracking-widest uppercase mb-1" id="probLabel">大氣熱力學融合成景率</div>
+                <div class="text-5xl sm:text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-400 tracking-tight font-mono" id="probabilityVal">
+                    0%
+                </div>
+                <div class="mt-3 px-3.5 py-1 rounded-full text-[10px] font-bold" id="levelBadge">
+                    正在分析環境...
+                </div>
+                <div class="text-[9px] text-slate-500 mt-2.5 text-center" id="dataSourceStatus">
+                    --
+                </div>
+            </div>
+
+            <div id="chartSection" class="mb-5 hidden">
+                <h4 class="text-[10px] font-bold text-slate-400 mb-3 tracking-wide uppercase">📈 24小時整點機率趨勢圖</h4>
+                <div class="bg-slate-950/90 p-2 sm:p-3 rounded-xl border border-slate-800/80">
+                    <div class="relative w-full h-[180px] sm:h-[220px]">
+                        <canvas id="hourlyChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2.5 mb-5">
+                <div class="bg-slate-950/40 p-3 rounded-xl border border-slate-800/60 text-center">
+                    <span class="block text-[9px] text-slate-500 mb-0.5">露點差 (T-Td)</span>
+                    <span class="text-sm font-bold text-white font-mono" id="valDewDiff">-- °C</span>
+                </div>
+                <div class="bg-slate-950/40 p-3 rounded-xl border border-slate-800/60 text-center">
+                    <span class="block text-[9px] text-slate-500 mb-0.5">地表相對濕度</span>
+                    <span class="text-sm font-bold text-white font-mono" id="valHumid">-- %</span>
+                </div>
+                <div class="bg-slate-950/40 p-3 rounded-xl border border-slate-800/60 text-center">
+                    <span class="block text-[9px] text-slate-500 mb-0.5">地表風速</span>
+                    <span class="text-sm font-bold text-white font-mono" id="valWind">-- m/s</span>
+                </div>
+                <div class="bg-slate-950/40 p-3 rounded-xl border border-slate-800/60 text-center">
+                    <span class="block text-[9px] text-slate-500 mb-0.5">850hPa 濕度 (高空)</span>
+                    <span class="text-sm font-bold text-white font-mono" id="val850Humid">-- %</span>
+                </div>
+            </div>
+
+            <div class="space-y-3 mb-5">
+                <div class="p-3 bg-slate-950/40 rounded-xl border border-slate-800/60">
+                    <h5 class="text-[10px] font-bold text-cyan-400 tracking-wider uppercase mb-1.5 flex items-center gap-1.5">
+                        <span class="flex h-1.5 w-1.5 relative">
+                            <span class="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75" id="dotInversionPulse"></span>
+                            <span class="relative inline-flex rounded-full h-1.5 w-1.5" id="dotInversion"></span>
+                        </span>
+                        <span>🏔️ 逆溫層與飽和低雲</span>
+                    </h5>
+                    <ul class="text-xs text-slate-300 space-y-1 font-medium" id="inversionStatus">
+                        <li>等待物理探空比對中...</li>
+                    </ul>
+                </div>
+                <div class="p-3 bg-slate-950/40 rounded-xl border border-slate-800/60">
+                    <h5 class="text-[10px] font-bold text-cyan-400 tracking-wider uppercase mb-1.5 flex items-center gap-1.5">
+                        <span class="flex h-1.5 w-1.5 relative">
+                            <span class="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75" id="dotRadiationPulse"></span>
+                            <span class="relative inline-flex rounded-full h-1.5 w-1.5" id="dotRadiation"></span>
+                        </span>
+                        <span>🍂 地表冷卻與降水基底</span>
+                    </h5>
+                    <ul class="text-xs text-slate-300 space-y-1 font-medium" id="radiationStatus">
+                        <li>等待地表數值計算中...</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="p-3.5 bg-slate-950/80 rounded-xl border border-slate-850">
+                <h4 class="text-[10px] font-bold text-white mb-1.5 tracking-wider uppercase">🔍 現場派遣診斷與攝影指南</h4>
+                <p class="text-xs text-slate-300 leading-relaxed font-normal" id="recommendationText">
+                    請按上方按鈕開始計算。
+                </p>
+            </div>
+        </div>
+
+        <footer class="text-center mt-8 mb-4 text-[9px] text-slate-600 space-y-1">
+            <p>數據源：CWA 中央氣象署 (60%) ＋ Open-Meteo 物理層探空模型 (40%)</p>
+            <p>本儀器專為微氣象攝影規劃開發 · 出發前請搭配即時監視器雙重確認</p>
+        </footer>
+    </div>
+
+    <script>
+        // CWA Proxy 代理端點（預留，若未響應會自動 fallback 降級但保持多層物理運算）
+        const CWA_PROXY_URL = "https://your-proxy-server.com/api/cwa"; 
+
+        let chartInstance = null; 
+
+        document.addEventListener("DOMContentLoaded", () => {
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('predictDate').value = today;
+            toggleLocationOptions();
+        });
+
+        function toggleLocationOptions() {
+            const type = document.getElementById('predictType').value;
+            const cloudSelect = document.getElementById('cloudLoc');
+            const fogSelect = document.getElementById('fogLoc');
+
+            if (type === 'cloud') {
+                cloudSelect.classList.remove('hidden');
+                fogSelect.classList.add('hidden');
+            } else {
+                cloudSelect.classList.add('hidden');
+                fogSelect.classList.remove('hidden');
+            }
+            checkCustomLoc();
+        }
+
+        function checkCustomLoc() {
+            const type = document.getElementById('predictType').value;
+            const activeSelect = (type === 'cloud') ? document.getElementById('cloudLoc') : document.getElementById('fogLoc');
+            
+            const latInput = document.getElementById('customLat');
+            const lngInput = document.getElementById('customLng');
+            const hintText = document.getElementById('coordsHint');
+
+            if (activeSelect.value === 'custom') {
+                latInput.disabled = false;
+                lngInput.disabled = false;
+                latInput.focus();
+                hintText.innerHTML = "🔓 <span class='text-cyan-400 font-bold'>自訂座標已啟用，請直接輸入：</span>";
+            } else {
+                latInput.disabled = true;
+                lngInput.disabled = true;
+                const coords = activeSelect.value.split(',');
+                if(coords.length === 2) {
+                    latInput.value = coords[0];
+                    lngInput.value = coords[1];
+                }
+                hintText.innerHTML = "🔒 帶入預設經緯度座標：";
+            }
+        }
+
+        async function startAnalysis() {
+            const btn = document.getElementById('btnAnalyze');
+            const type = document.getElementById('predictType').value;
+            const dateStr = document.getElementById('predictDate').value;
+            const period = document.getElementById('timePeriod').value;
+            const targetAlt = parseInt(document.getElementById('locAltitude').value);
+
+            if (!dateStr) {
+                alert('請先選擇預報日期！');
+                return;
+            }
+
+            let lat, lng, locName;
+            const activeSelect = (type === 'cloud') ? document.getElementById('cloudLoc') : document.getElementById('fogLoc');
+            
+            if (activeSelect.value === 'custom') {
+                lat = document.getElementById('customLat').value;
+                lng = document.getElementById('customLng').value;
+                locName = "自訂位置";
+                if (!lat || !lng) {
+                    alert('自訂座標啟用中，請先輸入緯度與經度值！');
+                    return;
+                }
+            } else {
+                const coords = activeSelect.value.split(',');
+                lat = coords[0];
+                lng = coords[1];
+                locName = activeSelect.options[activeSelect.selectedIndex].text;
+            }
+
+            btn.disabled = true;
+            btn.innerHTML = `⏳ 正在比對多層探空資料...`;
+
+            try {
+                // 大氣探空：850hPa 溫度/濕度、925hPa 溫度、低雲、地表降雨、夜間雲量
+                const openMeteoUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&hourly=temperature_2m,relative_humidity_2m,dew_point_2m,wind_speed_10m,precipitation,precipitation_probability,cloud_cover,cloud_cover_low,cloud_cover_mid,temperature_850hPa,relative_humidity_850hPa,temperature_925hPa&forecast_days=16&timezone=auto`;
+                
+                const promises = [
+                    fetch(openMeteoUrl).then(res => { if(!res.ok) throw new Error(); return res.json(); })
+                ];
+
+                if (CWA_PROXY_URL && CWA_PROXY_URL !== "https://your-proxy-server.com/api/cwa") {
+                    const cwaUrl = `${CWA_PROXY_URL}?lat=${lat}&lng=${lng}&date=${dateStr}`;
+                    promises.push(fetch(cwaUrl).then(res => res.ok ? res.json() : null).catch(() => null));
+                } else {
+                    promises.push(Promise.resolve(null));
+                }
+
+                const [omData, cwaData] = await Promise.all(promises);
+                const isFallbackMode = !cwaData;
+
+                processAdvancedPhysics(omData, cwaData, dateStr, period, type, locName, targetAlt, isFallbackMode);
+
+            } catch (error) {
+                console.error(error);
+                alert('【大氣系統錯誤】讀取高空物理層數值失敗，請檢查網路。');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = `🚀 開始雙源物理級分析`;
+            }
+        }
+
+        function processAdvancedPhysics(omData, cwaData, dateStr, period, type, locName, targetAlt, isFallbackMode) {
+            const hourly = omData.hourly;
+            const times = hourly.time;
+
+            // 計算前一日降水基底
+            let priorDayPrecipitation = 0;
+            const dateObj = new Date(dateStr);
+            dateObj.setDate(dateObj.getDate() - 1);
+            const priorDateStr = dateObj.toISOString().split('T')[0];
+
+            for (let i = 0; i < times.length; i++) {
+                if (times[i].startsWith(priorDateStr)) {
+                    priorDayPrecipitation += (hourly.precipitation[i] || 0);
+                }
+            }
+
+            let targetIndexes = [];
+            let chartLabels = [];
+            let chartData = [];
+            const month = parseInt(dateStr.split('-')[1]);
+
+            for (let i = 0; i < times.length; i++) {
+                if (times[i].startsWith(dateStr)) {
+                    const hour = parseInt(times[i].split('T')[1].split(':')[0]);
+                    
+                    let isTarget = false;
+                    if (period === 'sunrise' && hour >= 4 && hour <= 8) isTarget = true;
+                    else if (period === 'sunset' && hour >= 16 && hour <= 20) isTarget = true;
+                    else if (period === 'all') isTarget = true;
+
+                    if (isTarget) {
+                        targetIndexes.push(i);
+
+                        let temp = hourly.temperature_2m[i];
+                        let humid = hourly.relative_humidity_2m[i];
+                        let wind = hourly.wind_speed_10m[i] / 3.6; 
+                        let dew = hourly.dew_point_2m[i];
+                        let rainProb = hourly.precipitation_probability[i];
+
+                        let cloudCover = hourly.cloud_cover[i];
+                        let lowCloudCover = hourly.cloud_cover_low[i];
+                        let temp850 = hourly.temperature_850hPa[i];
+                        let humid850 = hourly.relative_humidity_850hPa[i];
+                        let temp925 = hourly.temperature_925hPa[i];
+
+                        if (!isFallbackMode && cwaData && cwaData.hourly && cwaData.hourly[hour]) {
+                            const cwa = cwaData.hourly[hour];
+                            humid = Math.round((cwa.relative_humidity * 0.6) + (humid * 0.4));
+                            dew = parseFloat(((cwa.dew_point * 0.6) + (dew * 0.4)).toFixed(1));
+                            rainProb = Math.round((cwa.precipitation_probability * 0.6) + (rainProb * 0.4));
+                        }
+
+                        const prob = calculateStrictPhysicsProbability({
+                            type, temp, humid, wind, dew, rainProb,
+                            cloudCover, lowCloudCover, temp850, humid850, temp925,
+                            targetAlt, priorDayPrecipitation, month, hour
+                        });
+
+                        chartLabels.push(`${hour}:00`);
+                        chartData.push(prob);
+                    }
+                }
+            }
+
+            if (targetIndexes.length === 0) {
+                alert('無此日之大氣探空數據。');
+                return;
+            }
+
+            // 物理平均指標
+            let sumDewDiff = 0, sumHumid = 0, sumWind = 0, sum850Humid = 0;
+            let sumTemp925 = 0, sumTemp850 = 0, sumLowCloud = 0;
+
+            targetIndexes.forEach(idx => {
+                sumDewDiff += Math.abs(hourly.temperature_2m[idx] - hourly.dew_point_2m[idx]);
+                sumHumid += hourly.relative_humidity_2m[idx];
+                sumWind += hourly.wind_speed_10m[idx] / 3.6;
+                sum850Humid += hourly.relative_humidity_850hPa[idx];
+                sumTemp925 += hourly.temperature_925hPa[idx];
+                sumTemp850 += hourly.temperature_850hPa[idx];
+                sumLowCloud += hourly.cloud_cover_low[idx];
+            });
+
+            const count = targetIndexes.length;
+            const avgDewDiff = (sumDewDiff / count).toFixed(1);
+            const avgHumid = Math.round(sumHumid / count);
+            const avgWind = (sumWind / count).toFixed(1);
+            const avg850Humid = Math.round(sum850Humid / count);
+            const avgInversionIntensity = ((sumTemp850 / count) - (sumTemp925 / count)).toFixed(1);
+            const avgLowCloud = Math.round(sumLowCloud / count);
+
+            const finalProbability = Math.round(chartData.reduce((a, b) => a + b, 0) / chartData.length);
+
+            // 更新 UI
+            document.getElementById('resultTitle').innerHTML = `📊 ${locName} - 物理診斷預報`;
+            document.getElementById('reportTime').innerText = `${dateStr}`;
+            document.getElementById('probLabel').innerText = (period === 'all') ? "24H 大氣物理融合機率" : "指定時段物理機率";
+            
+            const probElement = document.getElementById('probabilityVal');
+            probElement.innerText = `${finalProbability}%`;
+
+            document.getElementById('valDewDiff').innerText = `${avgDewDiff} °C`;
+            document.getElementById('valHumid').innerText = `${avgHumid} %`;
+            document.getElementById('valWind').innerText = `${avgWind} m/s`;
+            document.getElementById('val850Humid').innerText = `${avg850Humid} %`;
+
+            // 逆溫層指示燈美化
+            const hasInversion = avgInversionIntensity > 0;
+            const dotInversion = document.getElementById('dotInversion');
+            const dotInversionPulse = document.getElementById('dotInversionPulse');
+            if (hasInversion) {
+                dotInversion.className = "relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-400";
+                dotInversionPulse.className = "animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75";
+                document.getElementById('inversionStatus').innerHTML = `
+                    <li>逆溫蓋頂：<span class="text-emerald-400 font-bold">顯著存在 (+${avgInversionIntensity}°C)</span></li>
+                    <li>低空雲量：<span class="text-slate-300">${avgLowCloud >= 70 ? '🌫️ 飽和霧層' : '🌤️ 局部稀少'} (${avgLowCloud}%)</span></li>
+                `;
+            } else {
+                dotInversion.className = "relative inline-flex rounded-full h-1.5 w-1.5 bg-slate-500";
+                dotInversionPulse.className = "hidden";
+                document.getElementById('inversionStatus').innerHTML = `
+                    <li>逆溫強度：<span class="text-slate-500 font-semibold">無顯著逆溫 (${avgInversionIntensity}°C)</span></li>
+                    <li>低空雲量：<span class="text-slate-400">水氣蒸散擴散中 (${avgLowCloud}%)</span></li>
+                `;
+            }
+
+            // 輻射冷卻指示燈美化
+            const nightRadiativeCooling = avgWind < 1.5;
+            const dotRadiation = document.getElementById('dotRadiation');
+            const dotRadiationPulse = document.getElementById('dotRadiationPulse');
+            if (nightRadiativeCooling) {
+                dotRadiation.className = "relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-400";
+                dotRadiationPulse.className = "animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75";
+                document.getElementById('radiationStatus').innerHTML = `
+                    <li>冷卻降溫：<span class="text-emerald-400 font-bold">極佳 (微風利於輻射冷卻)</span></li>
+                    <li>地表降水：<span class="text-slate-300">${priorDayPrecipitation > 0 ? `🟢 水氣足 (${priorDayPrecipitation.toFixed(1)}mm)` : '🟡 乾旱環境'}</span></li>
+                `;
+            } else {
+                dotRadiation.className = "relative inline-flex rounded-full h-1.5 w-1.5 bg-slate-500";
+                dotRadiationPulse.className = "hidden";
+                document.getElementById('radiationStatus').innerHTML = `
+                    <li>冷卻阻力：<span class="text-slate-500 font-semibold">風速偏快吹散對流</span></li>
+                    <li>地表降水：<span class="text-slate-400">${priorDayPrecipitation > 0 ? `🟢 有水氣 (${priorDayPrecipitation.toFixed(1)}mm)` : '⚪ 無前日雨量支援'}</span></li>
+                `;
+            }
+
+            // 數據源狀態
+            const sourceStatusBadge = document.getElementById('dataSourceStatus');
+            if (isFallbackMode) {
+                sourceStatusBadge.innerHTML = "⚠️ CWA 局地代理端點未響應，啟用 <span class='text-amber-400 font-bold'>Open-Meteo 多層探空物理模型</span>";
+            } else {
+                sourceStatusBadge.innerHTML = "🟢 雙源探空啟用中：<span class='text-emerald-400 font-bold'>CWA (60%) × Open-Meteo (40%)</span>";
+            }
+
+            // 診斷建議文字
+            let advice = "";
+            if (type === 'cloud') {
+                if (finalProbability >= 65) {
+                    advice = `🎯 <strong>【機率極佳，強烈建議出兵】</strong> 環境存在穩定逆溫蓋子（+${avgInversionIntensity}°C），中低層水氣充沛，且 850hPa 濕度理想。此熱力結構極利於形成波瀾壯闊的瀑布雲海，出景率極高！`;
+                } else if (finalProbability >= 40) {
+                    advice = `🌤️ <strong>【機率中等，部分大氣閥值不足】</strong> 水氣良好，但由於逆溫效應較弱，雲海凝聚不夠扎實，雲頂可能過高或形成局部白牆。建議攜帶腳架前往，配合現地即時影像出發。`;
+                } else {
+                    advice = `❌ <strong>【今日條件過於嚴格，不建議前往】</strong> 露點溫差過大（${avgDewDiff}°C）空氣極為乾癟，或者無逆溫層保護，水氣極速逸散。出景機率渺茫。`;
+                }
+            } else {
+                if (finalProbability >= 65) {
+                    advice = `🎯 <strong>【極高機率產生平流琉璃霧】</strong> 地表飽和度極高，搭配適中微風（${avgWind} m/s）將濕冷空氣水平帶入河谷與平原。八里、淡水、關渡平原極易形成夢幻的「霧鎖關渡」琉璃景致，可即刻前往蹲點！`;
+                } else if (finalProbability >= 40) {
+                    advice = `🌫️ <strong>【機率中等，局部輻射平流】</strong> 符合冷凝條件，但平流動力稍顯不足。可能在凌晨出現局部地霧，消散較快。`;
+                } else {
+                    advice = `❌ <strong>【大氣物理不支持起霧】</strong> 環境極度乾燥，風速高於起霧臨界點或高空不穩定。地表不易凝結形成流動平流霧。`;
+                }
+            }
+            document.getElementById('recommendationText').innerHTML = advice;
+
+            // 機率等級標籤樣式
+            const badge = document.getElementById('levelBadge');
+            if (finalProbability >= 65) {
+                probElement.className = "text-5xl sm:text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-400 tracking-tight font-mono";
+                badge.className = "mt-3 px-3.5 py-1 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20";
+                badge.innerText = "🌟 機率極高 (物理條件完美)";
+            } else if (finalProbability >= 40) {
+                probElement.className = "text-5xl sm:text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-orange-400 tracking-tight font-mono";
+                badge.className = "mt-3 px-3.5 py-1 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20";
+                badge.innerText = "⚡ 機率中等 (部分閥值未達)";
+            } else {
+                probElement.className = "text-5xl sm:text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-slate-400 to-slate-500 tracking-tight font-mono";
+                badge.className = "mt-3 px-3.5 py-1 rounded-full text-[10px] font-bold bg-slate-800 text-slate-400 border border-slate-700";
+                badge.innerText = "❄️ 機率偏低 (物理不合)";
+            }
+
+            // 控制 24 小時圖表
+            const chartSection = document.getElementById('chartSection');
+            if (period === 'all') {
+                chartSection.classList.remove('hidden');
+                renderChart(chartLabels, chartData, type === 'cloud' ? '物理雲海機率' : '物理平流霧機率');
+            } else {
+                chartSection.classList.add('hidden');
+            }
+
+            // 展開分析結果並流暢捲動
+            const resultCard = document.getElementById('resultCard');
+            resultCard.classList.remove('hidden');
+            resultCard.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        // 大氣熱力學嚴格物理模型演算法
+        function calculateStrictPhysicsProbability(p) {
+            let score = 0;
+            const dewDiff = Math.abs(p.temp - p.dew);
+
+            if (p.type === 'cloud') {
+                if (dewDiff <= 1.0) score += 25;
+                else if (dewDiff <= 2.0) score += 15;
+                else if (dewDiff <= 3.5) score += 5;
+                else score -= 15;
+
+                if (p.humid >= 90) score += 20;
+                else if (p.humid >= 75) score += 10;
+                else score -= 10;
+
+                const inversionStrength = p.temp850 - p.temp925;
+                if (inversionStrength > 0.5) score += 20;
+                else if (inversionStrength >= -1.0) score += 10;
+                else score -= 15;
+
+                if (p.humid850 >= 40 && p.humid850 <= 78) score += 15;
+                else if (p.humid850 > 88) score -= 15;
+
+                if (p.wind <= 1.5) score += 10;
+                else if (p.wind <= 3.0) score += 5;
+                else score -= 15;
+
+                if (p.priorDayPrecipitation > 0.5) score += 5;
+                if (p.cloudCover <= 30 && p.hour <= 7 && p.wind <= 1.5) score += 5;
+
+                if (p.lowCloudCover < 25) score -= 20;
+
+                if ([10, 11, 12, 1, 2, 3].includes(p.month)) score += 5;
+                else score -= 15;
+
+            } else {
+                if (dewDiff <= 0.8) score += 30;
+                else if (dewDiff <= 1.5) score += 15;
+                else if (dewDiff <= 2.5) score += 5;
+                else score -= 20;
+
+                if (p.humid >= 93) score += 20;
+                else if (p.humid >= 83) score += 10;
+                else score -= 15;
+
+                if (p.wind >= 0.8 && p.wind <= 3.0) score += 20;
+                else if (p.wind > 3.0 && p.wind <= 4.5) score += 10;
+                else score -= 15;
+
+                if (p.priorDayPrecipitation >= 1.0) score += 15;
+                else if (p.priorDayPrecipitation > 0.0) score += 8;
+
+                if (p.humid850 <= 70) score += 10;
+                else score -= 10;
+
+                if ([11, 12, 1, 2, 3, 4].includes(p.month)) score += 5;
+                else score -= 20;
+
+                if (p.rainProb > 45) score -= 15;
+            }
+
+            return Math.max(0, Math.min(100, score));
+        }
+
+        function renderChart(labels, data, labelName) {
+            const ctx = document.getElementById('hourlyChart').getContext('2d');
+            
+            if (chartInstance) {
+                chartInstance.destroy();
+            }
+
+            chartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: labelName + ' (%)',
+                        data: data,
+                        borderColor: '#22d3ee', 
+                        backgroundColor: 'rgba(34, 211, 238, 0.08)',
+                        borderWidth: 2.5,
+                        pointBackgroundColor: '#0ea5e9',
+                        pointBorderColor: '#fff',
+                        pointHoverRadius: 5,
+                        tension: 0.4,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) { return ` 物理融合成景率: ${context.parsed.y}%`; }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: { color: 'rgba(255, 255, 255, 0.03)' },
+                            ticks: { color: '#64748b', font: { size: 9, family: 'monospace' } }
+                        },
+                        y: {
+                            min: 0,
+                            max: 100,
+                            grid: { color: 'rgba(255, 255, 255, 0.03)' },
+                            ticks: {
+                                stepSize: 25,
+                                color: '#64748b',
+                                font: { size: 9, family: 'monospace' },
+                                callback: function(value) { return value + '%'; }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+    </script>
+</body>
+</html>
